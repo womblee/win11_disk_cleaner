@@ -27,7 +27,7 @@ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope CurrentUser
 
 ### Run the script
 ```powershell
-.\Win11_Cleaner.ps1
+.\win11_cleaner.ps1
 ```
 
 Or right-click the file and select **Run with PowerShell**.
