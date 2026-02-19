@@ -1,42 +1,69 @@
 # Win11 Cleaner
 
-A PowerShell script for cleaning and maintaining Windows 11 systems. Removes temporary files, browser caches, system logs, and other junk — all from an interactive menu so you pick exactly what runs.
+A PowerShell script for cleaning and maintaining Windows 11 systems. Removes temporary files, browser caches, app caches, system logs, GPU shader caches, crash dumps, and more — all from an interactive menu so you pick exactly what runs.
 
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue)
 ![OS](https://img.shields.io/badge/Windows-11-lightgrey)
-![Version](https://img.shields.io/badge/Version-1.2-green)
+![Version](https://img.shields.io/badge/Version-2.0-green)
 
 ---
 
 ## Requirements
 
-- Windows 11
-- PowerShell 5.1 or later
+- Windows 8.1, 10 or 11
 - Administrator privileges (the script auto-elevates if not already running as Admin)
+
+<img width="488" height="257" alt="image" src="https://github.com/user-attachments/assets/3450fcfd-d3ec-4097-b05d-4b5703f9ca4c" />
+
+<img width="488" height="257" alt="image" src="https://github.com/user-attachments/assets/fab41d88-0509-4c75-b096-73028689c3c3" />
 
 ---
 
-## Setup
+## Usage
 
-### Allow the script to run
+### Method 1 — Download and run (recommended)
 
-PowerShell blocks unsigned scripts by default. Run this once in an elevated PowerShell window to allow `.ps1` files for your account:
+```powershell
+irm https://raw.githubusercontent.com/womblee/win11_disk_cleaner/main/win11_cleaner.ps1 -OutFile "$env:TEMP\win11_cleaner.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\win11_cleaner.ps1"
+```
+
+### Method 2 — Run locally
+
+If you've cloned or downloaded the repo, allow `.ps1` files to run (one-time):
+
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope CurrentUser
 ```
 
-### Run the script
+Then run:
+
 ```powershell
 .\win11_cleaner.ps1
 ```
 
-Or right-click the file and select **Run with PowerShell**.
+If Windows says the file is blocked, unblock it first:
+
+```powershell
+Unblock-File -Path .\win11_cleaner.ps1
+```
+
+---
+
+## Menu
+
+When the script launches you'll see the full task list. Enter numbers separated by commas, `A` to run everything, or `Q` to quit.
+
+```
+1,2,6,34      run specific tasks
+A             run all tasks
+Q             quit
+```
 
 ---
 
 ## Available Tasks
 
-### Temporary Files + Caches
+### Temp + Cache
 
 | # | Task |
 |---|------|
@@ -45,18 +72,27 @@ Or right-click the file and select **Run with PowerShell**.
 | 3 | Windows Update Cache |
 | 4 | Prefetch Files |
 
-### Browser Caches
+### Browsers
 
 | # | Task |
 |---|------|
-| 5 | Microsoft Edge Cache |
-| 6 | Google Chrome Cache |
-| 7 | Mozilla Firefox Cache |
-| 18 | Brave Browser Cache |
+| 5 | Microsoft Edge |
+| 6 | Google Chrome |
+| 7 | Mozilla Firefox |
+| 18 | Brave |
 
-> **Note:** Browser cleaning targets cache and temp files only. Cookies and login sessions are not touched — you will not be logged out of anything.
+> Cache and temp files only. Cookies and login sessions are not touched.
 
-### Windows Logs + Diagnostics
+### Apps
+
+| # | Task |
+|---|------|
+| 32 | Spotify Cache |
+| 33 | Telegram Cache |
+
+> Spotify and Telegram are terminated before clearing. They relaunch normally afterwards.
+
+### Logs + Diagnostics
 
 | # | Task |
 |---|------|
@@ -64,45 +100,36 @@ Or right-click the file and select **Run with PowerShell**.
 | 9 | Windows Diagnostic Traces |
 | 10 | CBS (Component-Based Servicing) Logs |
 
-### Recycle Bin + Restore
+### Recycle + Restore
 
 | # | Task |
 |---|------|
-| 11 | Empty Recycle Bin (All Drives) |
-| 12 | Old Shadow Copies / Restore Points |
+| 11 | Empty Recycle Bin (all drives) |
+| 12 | Old Shadow Copies (keeps latest) |
+| 31 | Old System Restore Points (keeps latest) |
 
-### Startup + Performance
-
-| # | Task |
-|---|------|
-| 19 | Clear Windows Performance Counters |
-
-### Disk + Storage
+### Performance + Startup
 
 | # | Task |
 |---|------|
-| 20 | Run Windows Disk Cleanup (automated) |
+| 19 | Windows Performance Counters |
+
+### Disk + Store
+
+| # | Task |
+|---|------|
+| 20 | Windows Disk Cleanup (GUI) |
 | 21 | Microsoft Store Cache |
 
-### App + System Residual
-
-| # | Task |
-|---|------|
-| 24 | Windows Notification Cache |
-| 25 | Recent Files + Jump List Cache |
-
-### Windows Search + Indexing
+### Cache + Icons
 
 | # | Task |
 |---|------|
 | 15 | Rebuild Windows Search Index |
-
-### Thumbnail + Icon Caches
-
-| # | Task |
-|---|------|
 | 16 | Thumbnail Cache |
-| 17 | Icon Cache (IconCache.db) |
+| 17 | Icon Cache |
+| 24 | Notification Cache |
+| 25 | Recent Files + Jump Lists |
 
 ### Network
 
@@ -111,58 +138,69 @@ Or right-click the file and select **Run with PowerShell**.
 | 26 | Flush DNS Cache |
 | 27 | Reset TCP/IP Stack |
 
-### Windows Telemetry + Logs
+### Telemetry
 
 | # | Task |
 |---|------|
 | 28 | Delivery Optimization Cache (DOSVC) |
 | 29 | Windows Update Logs |
 
-### System Restore
+### Gaming
 
 | # | Task |
 |---|------|
-| 31 | System Restore Points (all except latest) |
+| 34 | Steam Cache (HTML cache, shader cache, download depots) |
+| 35 | GPU Shader Cache (NVIDIA + AMD) |
+| 36 | DirectX Shader Cache (D3DSCache) |
+| 37 | Discord Cache (stable, PTB, Canary) |
+| 38 | Xbox Game Bar / GameDVR / DXGI Logs |
+| 39 | Crash Dumps (minidumps, app dumps, WER reports) |
+
+> Steam and Discord are terminated before clearing.
+
+### Dev Tools
+
+| # | Task |
+|---|------|
+| 40 | Visual Studio / .NET Temp (packages temp, ASP.NET temp files, Roslyn compiler cache) |
 
 ---
 
-## Usage
+## Tasks that require confirmation
 
-When the script launches, you'll see the full menu. You can either:
+These tasks prompt `[Y]` before running due to their impact:
 
-- **Pick specific tasks** — enter the numbers separated by commas, e.g. `1,2,5,18`
-- **Run everything** — enter `A`
-- **Quit** — enter `Q`
-
-### Tasks that require confirmation
-
-The following tasks will prompt you to type `yes` before they execute, since they have a bigger impact:
-
-- **12** — Deletes all shadow copies except the most recent one
-- **27** — Resets the TCP/IP stack (network will briefly drop and reconnect)
-- **31** — Deletes all system restore points except the most recent one
+| # | Reason |
+|---|--------|
+| 12 | Deletes all shadow copies except the most recent |
+| 20 | Opens the Windows Disk Cleanup wizard |
+| 27 | Resets TCP/IP stack — network will briefly drop |
+| 31 | Deletes all restore points except the most recent |
 
 ---
 
 ## Logging
 
-Every run generates a log file on your Desktop:
+Each run saves a log file in the same folder as the script:
+
 ```
-Win11_Cleaner_Log_YYYY-MM-DD_HH-mm-ss.txt
+cleaner_YYYYMMDD_HHmmss.log
 ```
 
-It records every task that ran, was skipped, or errored, along with how much space each task freed.
+Every task is logged as `clear`, `skip`, or `error`, with the amount freed in MB.
 
 ---
 
 ## Safe to run?
 
 - **Browser tasks** only clear cache — cookies and sessions are untouched.
-- **Task 12 and 31** keep your most recent shadow copy / restore point and only delete older ones.
+- **Tasks 12 and 31** keep your most recent shadow copy / restore point.
 - **Task 15** resets the search index — Windows rebuilds it automatically in the background.
 - **Task 17** restarts Explorer briefly to rebuild the icon cache.
-- **Task 20** runs the built-in Windows Disk Cleanup tool silently.
-- **Task 27** resets TCP/IP — your network will reconnect on its own within a few seconds.
+- **Task 20** opens the built-in Windows Disk Cleanup tool.
+- **Task 27** resets TCP/IP — network reconnects on its own within seconds.
+- **GPU / DirectX shader caches** (35, 36) are rebuilt automatically by your drivers and games on next launch.
+- **Crash dumps** (39) are debug files only — safe to delete unless you are actively diagnosing a crash.
 
 ---
 
