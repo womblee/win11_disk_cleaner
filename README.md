@@ -21,7 +21,7 @@ A PowerShell script for cleaning and maintaining Windows 11 systems. Removes tem
 
 ### Method 1 — Download and run (recommended)
 
-Copy and paste this into your PowerShell window (make sure you launched it as administrator).
+Copy and paste this into your PowerShell window as administrator.
 
 ```powershell
 irm https://raw.githubusercontent.com/womblee/win11_disk_cleaner/main/win11_cleaner.ps1 -OutFile "$env:TEMP\win11_cleaner.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\win11_cleaner.ps1"
