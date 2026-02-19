@@ -12,14 +12,16 @@ A PowerShell script for cleaning and maintaining Windows 11 systems. Removes tem
 
 - Windows 8.1, 10 or 11
 - Administrator privileges (the script auto-elevates if not already running as Admin)
-
-<img width="488" height="257" alt="image" src="https://github.com/user-attachments/assets/3450fcfd-d3ec-4097-b05d-4b5703f9ca4c" />
+  
+  <img width="488" height="257" alt="image" src="https://github.com/user-attachments/assets/3450fcfd-d3ec-4097-b05d-4b5703f9ca4c" />
 
 ---
 
 ## Usage
 
 ### Method 1 — Download and run (recommended)
+
+Copy and paste this into your PowerShell window (make sure you launched it as administrator).
 
 ```powershell
 irm https://raw.githubusercontent.com/womblee/win11_disk_cleaner/main/win11_cleaner.ps1 -OutFile "$env:TEMP\win11_cleaner.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\win11_cleaner.ps1"
