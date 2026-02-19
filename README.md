@@ -1,6 +1,8 @@
-# Win11 Cleaner
+<h1 align="center">Windows 11 Disk Cleaner (W11DS)</h1>
 
-A PowerShell script for cleaning and maintaining Windows 11 systems. Removes temporary files, browser caches, app caches, system logs, GPU shader caches, crash dumps, and more — all from an interactive menu so you pick exactly what runs.
+<p align="center">A PowerShell script for cleaning and maintaining Windows 11 systems. Removes temporary files, browser caches, app caches, system logs, GPU shader caches, crash dumps, and more — all from an interactive menu so you pick exactly what runs.</p>
+
+<hr>
 
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue)
 ![OS](https://img.shields.io/badge/Windows-11-lightgrey)
