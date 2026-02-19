@@ -1,4 +1,4 @@
-<h1 align="center">Windows 11 Disk Cleaner (W11DS)</h1>
+<h1 align="center">Simple Windows Disk Cleaner (SWDS)</h1>
 
 <p align="center">A PowerShell script for cleaning and maintaining Windows 11 systems. Removes temporary files, browser caches, app caches, system logs, GPU shader caches, crash dumps, and more — all from an interactive menu so you pick exactly what runs.</p>
 
@@ -6,14 +6,7 @@
 ![OS](https://img.shields.io/badge/Windows-11-lightgrey)
 ![Version](https://img.shields.io/badge/Version-2.0-green)
 
----
-
-## Requirements
-
-- Windows 8.1, 10 or 11
-- Administrator privileges (the script auto-elevates if not already running as Admin)
-  
-  <img width="488" height="257" alt="image" src="https://github.com/user-attachments/assets/3450fcfd-d3ec-4097-b05d-4b5703f9ca4c" />
+<img width="488" height="257" alt="image" src="https://github.com/user-attachments/assets/3450fcfd-d3ec-4097-b05d-4b5703f9ca4c" />
 
 ---
 
@@ -47,6 +40,13 @@ If Windows says the file is blocked, unblock it first:
 Unblock-File -Path .\win11_cleaner.ps1
 ```
 
+---
+
+## Requirements
+
+- Windows 8.1, 10 or 11
+- Administrator privileges
+  
 ---
 
 ## Menu
