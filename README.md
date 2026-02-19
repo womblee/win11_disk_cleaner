@@ -13,6 +13,10 @@ A PowerShell script for cleaning and maintaining Windows 11 systems. Removes tem
 - Windows 8.1, 10 or 11
 - Administrator privileges (the script auto-elevates if not already running as Admin)
 
+<img width="488" height="257" alt="image" src="https://github.com/user-attachments/assets/3450fcfd-d3ec-4097-b05d-4b5703f9ca4c" />
+
+<img width="488" height="257" alt="image" src="https://github.com/user-attachments/assets/fab41d88-0509-4c75-b096-73028689c3c3" />
+
 ---
 
 ## Usage
