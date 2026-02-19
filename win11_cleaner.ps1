@@ -533,13 +533,20 @@ if ($selectedTasks -contains 28) {
 # ============================================================
 if ($selectedTasks -contains 29) {
     Write-Host "  [29] Windows Update Logs" -ForegroundColor Cyan
-    $paths = @(
+    $folders = @(
         "C:\Windows\Logs\WindowsUpdate",
         "C:\Windows\Logs\WinSetupLog",
-        "C:\Windows\Logs\DISM",
-        "C:\Windows\WindowsUpdate.log"
+        "C:\Windows\Logs\DISM"
     )
-    foreach ($p in $paths) { Remove-ItemsSafe $p "WU Logs" }
+    foreach ($p in $folders) { Remove-ItemsSafe $p "WU Logs" }
+    # Handle single log file directly to avoid recursive enumeration hang
+    $wuLog = "C:\Windows\WindowsUpdate.log"
+    if (Test-Path $wuLog) {
+        $mb = [math]::Round((Get-Item $wuLog).Length / 1MB, 2)
+        Remove-Item $wuLog -Force -ErrorAction SilentlyContinue
+        $script:TotalFreed += $mb
+        Log "clear  WU Logs (WindowsUpdate.log)  ($mb MB)"
+    }
 }
 
 # ============================================================
