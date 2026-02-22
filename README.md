@@ -1,4 +1,4 @@
-<h1 align="center">Simple Windows Disk Cleaner (SWDS)</h1>
+<h1 align="center">System-Wide Deep Sweep (SWDS)</h1>
 
 <p align="center">A PowerShell script for cleaning and maintaining Windows 11 systems. Removes temporary files, browser caches, app caches, system logs, GPU shader caches, crash dumps, and more — all from an interactive menu so you pick exactly what runs.</p>
 
@@ -45,7 +45,6 @@ Unblock-File -Path .\win11_cleaner.ps1
 ## Requirements
 
 - Windows 8.1, 10 or 11
-- Administrator privileges
   
 ---
 
@@ -184,7 +183,7 @@ These tasks prompt `[Y]` before running due to their impact:
 Each run saves a log file in the same folder as the script:
 
 ```
-cleaner_YYYYMMDD_HHmmss.log
+SWDS_YYYYMMDD_HHmmss.log
 ```
 
 Every task is logged as `clear`, `skip`, or `error`, with the amount freed in MB.
