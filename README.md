@@ -14,7 +14,7 @@
 
 ### Method 1 — Download and run ❤️
 
-**Copy and paste** this into your PowerShell window **as administrator**.
+**Copy and paste** this into your PowerShell window.
 
 ```powershell
 irm https://raw.githubusercontent.com/womblee/win11_disk_cleaner/main/win11_cleaner.ps1 -OutFile "$env:TEMP\win11_cleaner.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\win11_cleaner.ps1"
