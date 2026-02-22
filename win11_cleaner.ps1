@@ -13,7 +13,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 #  LOGGING
 # ============================================================
 $ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
-$LogFile    = Join-Path $ScriptDir ("cleaner_" + (Get-Date -Format "yyyyMMdd_HHmmss") + ".log")
+$LogFile    = Join-Path $ScriptDir ("SWDS_" + (Get-Date -Format "yyyyMMdd_HHmmss") + ".log")
 $TotalFreed = 0
 
 function Log {
@@ -38,16 +38,23 @@ function Get-FolderSize {
 
 function Remove-ItemsSafe {
     param([string]$Path, [string]$Label)
-    if (-not (Test-Path $Path)) { Log "skip   $Label"; return }
-    $mb = Get-FolderSize $Path
+    if (-not (Test-Path $Path)) { Log "skip   $Label  (not found)"; return }
+    $before = Get-FolderSize $Path
     try {
         Get-ChildItem $Path -File -Recurse -Force -ErrorAction SilentlyContinue |
             Remove-Item -Force -ErrorAction SilentlyContinue
         Get-ChildItem $Path -Directory -Recurse -Force -ErrorAction SilentlyContinue |
             Where-Object { -not (Get-ChildItem $_.FullName -Force -ErrorAction SilentlyContinue) } |
             Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
-        $script:TotalFreed += $mb
-        Log "clear  $Label  ($mb MB)"
+        $after  = Get-FolderSize $Path
+        $freed  = [math]::Round($before - $after, 2)
+        $script:TotalFreed += $freed
+        if ($freed -lt $before) {
+            $skipped = [math]::Round($after, 2)
+            Log "clear  $Label  ($freed MB freed, $skipped MB locked/skipped)"
+        } else {
+            Log "clear  $Label  ($freed MB)"
+        }
     } catch {
         Log "error  $Label  $($_.Exception.Message)"
     }
@@ -55,7 +62,7 @@ function Remove-ItemsSafe {
 
 function Remove-SubFolderContents {
     param([string]$ParentPath, [string]$Label)
-    if (-not (Test-Path $ParentPath)) { Log "skip   $Label"; return }
+    if (-not (Test-Path $ParentPath)) { Log "skip   $Label  (not found)"; return }
     $subs = Get-ChildItem $ParentPath -Directory -Force -ErrorAction SilentlyContinue
     foreach ($sub in $subs) {
         $mb = Get-FolderSize $sub.FullName
@@ -76,8 +83,17 @@ function Stop-AppSafe {
     }
 }
 
+# ============================================================
+#  FLUSH STDIN - prevents buffered Enter presses from
+#  auto-confirming prompts (especially after long steps)
+# ============================================================
+function Clear-InputBuffer {
+    $host.UI.RawUI.FlushInputBuffer()
+}
+
 function Confirm-Risky {
     param([string]$Warning)
+    Clear-InputBuffer
     Write-Host ""
     Write-Host "  ! $Warning" -ForegroundColor Yellow
     $r = Read-Host "    [Y] to confirm, anything else to skip"
@@ -89,8 +105,15 @@ function Confirm-Risky {
 # ============================================================
 Clear-Host
 Write-Host ""
-Write-Host "  WIN11 CLEANER" -ForegroundColor Cyan
-Write-Host "  -------------------------------------" -ForegroundColor DarkGray
+Write-Host "   _______          _______   _____ " -ForegroundColor Cyan
+Write-Host "  / ____\ \        / /  __ \ / ____|" -ForegroundColor Cyan
+Write-Host " | (___  \ \  /\  / /| |  | | (___  " -ForegroundColor Cyan
+Write-Host "  \___ \  \ \/  \/ / | |  | |\___ \ " -ForegroundColor Cyan
+Write-Host "  ____) |  \  /\  /  | |__| |____) |" -ForegroundColor Cyan
+Write-Host " |_____/    \/  \/   |_____/|_____/ " -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  System-Wide Deep Sweep" -ForegroundColor White
+Write-Host "  -----------------------------------------------" -ForegroundColor DarkGray
 Write-Host "  log -> $LogFile" -ForegroundColor DarkGray
 Write-Host ""
 Log "session start"
@@ -129,7 +152,7 @@ Write-Host "  PERFORMANCE + STARTUP" -ForegroundColor White
 Write-Host "  19  Performance Counters"
 Write-Host ""
 Write-Host "  DISK + STORE" -ForegroundColor White
-Write-Host "  20  Disk Cleanup (GUI)"
+Write-Host "  20  Disk Cleanup (GUI)         [prompt]"
 Write-Host "  21  Microsoft Store Cache"
 Write-Host ""
 Write-Host "  CACHE + ICONS" -ForegroundColor White
@@ -141,39 +164,44 @@ Write-Host "  25  Recent Files + Jump Lists"
 Write-Host ""
 Write-Host "  NETWORK" -ForegroundColor White
 Write-Host "  26  Flush DNS"
-Write-Host "  27  Reset TCP/IP Stack"
+Write-Host "  27  Reset TCP/IP Stack         [prompt]"
 Write-Host ""
 Write-Host "  TELEMETRY" -ForegroundColor White
 Write-Host "  28  Delivery Optimization Cache"
 Write-Host "  29  Windows Update Logs"
 Write-Host ""
 Write-Host "  GAMING" -ForegroundColor White
-Write-Host "  34  Steam Cache (shader + download depots)"
-Write-Host "  35  GPU Shader Cache (NVIDIA / AMD)"
-Write-Host "  36  DirectX Shader Cache (D3DSCache)"
+Write-Host "  34  Steam Cache"
+Write-Host "  35  GPU Shader Cache            [prompt]"
+Write-Host "  36  DirectX Shader Cache        [prompt]"
 Write-Host "  37  Discord Cache"
 Write-Host "  38  Xbox Game Bar / GameDVR / DXGI Logs"
-Write-Host "  39  Crash Dumps (system + app)"
+Write-Host "  39  Crash Dumps"
 Write-Host ""
 Write-Host "  DEV TOOLS" -ForegroundColor White
 Write-Host "  40  Visual Studio / .NET Temp"
 Write-Host ""
-Write-Host "  -------------------------------------" -ForegroundColor DarkGray
-Write-Host "   A  Run all     Q  Quit" -ForegroundColor Cyan
-Write-Host "  -------------------------------------" -ForegroundColor DarkGray
+Write-Host "  -----------------------------------------------" -ForegroundColor DarkGray
+Write-Host "   A  Run all"  -ForegroundColor Cyan
+Write-Host "   S  Simple  (skips: GPU shader, DirectX, TCP reset, Disk Cleanup)" -ForegroundColor Cyan
+Write-Host "   Q  Quit" -ForegroundColor Cyan
+Write-Host "  -----------------------------------------------" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "  Tasks (e.g. 1,2,5 or A): " -ForegroundColor Green -NoNewline
+Write-Host "  Tasks (e.g. 1,2,5  or  A  or  S): " -ForegroundColor Green -NoNewline
 $userInput = Read-Host
 
-$allTasks = @(1,2,3,4,5,6,7,8,9,10,11,12,15,16,17,18,19,20,21,24,25,26,27,28,29,31,32,33,34,35,36,37,38,39,40)
+$allTasks    = @(1,2,3,4,5,6,7,8,9,10,11,12,15,16,17,18,19,20,21,24,25,26,27,28,29,31,32,33,34,35,36,37,38,39,40)
+$simpleTasks = $allTasks | Where-Object { $_ -notin @(20,27,35,36) }
+
 $selectedTasks = @()
 
-if ($userInput.Trim().ToUpper() -eq "A") {
-    $selectedTasks = $allTasks
-} elseif ($userInput.Trim().ToUpper() -eq "Q") {
-    exit
-} else {
-    $selectedTasks = $userInput.Split(",") | ForEach-Object { [int]$_.Trim() }
+switch ($userInput.Trim().ToUpper()) {
+    "A" { $selectedTasks = $allTasks }
+    "S" { $selectedTasks = $simpleTasks }
+    "Q" { exit }
+    default {
+        $selectedTasks = $userInput.Split(",") | ForEach-Object { [int]$_.Trim() }
+    }
 }
 
 Write-Host ""
@@ -200,14 +228,35 @@ if ($selectedTasks -contains 2) {
 
 # ============================================================
 #  TASK 3 - Windows Update Cache
+#  Fix: stop service with timeout, kill if needed, skip if stuck
 # ============================================================
 if ($selectedTasks -contains 3) {
     Write-Host "  [3] Windows Update Cache" -ForegroundColor Cyan
     try {
-        Stop-Service wuauserv -Force -ErrorAction SilentlyContinue
+        $svc = Get-Service wuauserv -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -ne 'Stopped') {
+            Stop-Service wuauserv -Force -ErrorAction SilentlyContinue
+            # Wait max 10 seconds for the service to stop
+            $waited = 0
+            while ((Get-Service wuauserv -ErrorAction SilentlyContinue).Status -ne 'Stopped' -and $waited -lt 10) {
+                Start-Sleep -Seconds 1
+                $waited++
+            }
+            # If still not stopped, force-kill svchost hosting it
+            if ((Get-Service wuauserv -ErrorAction SilentlyContinue).Status -ne 'Stopped') {
+                $pid = (Get-WmiObject Win32_Service -Filter "Name='wuauserv'" -ErrorAction SilentlyContinue).ProcessId
+                if ($pid -and $pid -ne 0) {
+                    Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+                    Start-Sleep -Seconds 2
+                }
+            }
+        }
         Remove-ItemsSafe "C:\Windows\SoftwareDistribution\Download" "WU Cache"
+    } catch {
+        Log "error  WU Cache  $($_.Exception.Message)"
+    } finally {
         Start-Service wuauserv -ErrorAction SilentlyContinue
-    } catch { Log "error  WU Cache  $($_.Exception.Message)" }
+    }
 }
 
 # ============================================================
@@ -344,8 +393,10 @@ if ($selectedTasks -contains 11) {
     Write-Host "  [11] Recycle Bin" -ForegroundColor Cyan
     try {
         $n = 0
-        Get-PSDrive -Persist | Where-Object { $_.Root -like "*:\" } | ForEach-Object {
-            $rb = "$($_.Name):\`$Recycle.Bin"
+        $drives = Get-WmiObject Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue |
+                  Select-Object -ExpandProperty DeviceID
+        foreach ($drive in $drives) {
+            $rb = "$drive\`$Recycle.Bin"
             if (Test-Path $rb) {
                 $items = Get-ChildItem $rb -Recurse -Force -ErrorAction SilentlyContinue
                 $n += ($items | Measure-Object).Count
@@ -372,7 +423,7 @@ if ($selectedTasks -contains 12) {
                 Log "clear  Shadow Copies  ($($sorted.Count - 1) deleted)"
             }
         } catch { Log "error  Shadow Copies  $($_.Exception.Message)" }
-    } else { Log "skip   Shadow Copies (user cancelled)" }
+    } else { Log "skip   Shadow Copies (user declined)" }
 }
 
 # ============================================================
@@ -431,13 +482,13 @@ if ($selectedTasks -contains 17) {
 if ($selectedTasks -contains 19) {
     Write-Host "  [19] Performance Counters" -ForegroundColor Cyan
     try {
-        lodctr /r 2>$null
+        cmd /c "lodctr /r" 2>&1 | Out-Null
         Log "clear  Performance Counters"
     } catch { Log "error  Performance Counters  $($_.Exception.Message)" }
 }
 
 # ============================================================
-#  TASK 20 - Disk Cleanup
+#  TASK 20 - Disk Cleanup (prompt)
 # ============================================================
 if ($selectedTasks -contains 20) {
     Write-Host "  [20] Disk Cleanup (GUI)" -ForegroundColor Cyan
@@ -447,7 +498,7 @@ if ($selectedTasks -contains 20) {
             Start-Process "cleanmgr.exe" -ArgumentList "/sagerun:100" -Wait -NoNewWindow
             Log "clear  Disk Cleanup"
         } catch { Log "error  Disk Cleanup  $($_.Exception.Message)" }
-    } else { Log "skip   Disk Cleanup (user cancelled)" }
+    } else { Log "skip   Disk Cleanup (user declined)" }
 }
 
 # ============================================================
@@ -503,7 +554,7 @@ if ($selectedTasks -contains 26) {
 }
 
 # ============================================================
-#  TASK 27 - Reset TCP/IP Stack
+#  TASK 27 - Reset TCP/IP Stack (prompt)
 # ============================================================
 if ($selectedTasks -contains 27) {
     Write-Host "  [27] Reset TCP/IP Stack" -ForegroundColor Cyan
@@ -513,7 +564,7 @@ if ($selectedTasks -contains 27) {
             netsh int tcp reset 2>$null
             Log "clear  TCP/IP Stack (reboot recommended)"
         } catch { Log "error  TCP/IP  $($_.Exception.Message)" }
-    } else { Log "skip   TCP/IP (user cancelled)" }
+    } else { Log "skip   TCP/IP (user declined)" }
 }
 
 # ============================================================
@@ -539,7 +590,6 @@ if ($selectedTasks -contains 29) {
         "C:\Windows\Logs\DISM"
     )
     foreach ($p in $folders) { Remove-ItemsSafe $p "WU Logs" }
-    # Handle single log file directly to avoid recursive enumeration hang
     $wuLog = "C:\Windows\WindowsUpdate.log"
     if (Test-Path $wuLog) {
         $mb = [math]::Round((Get-Item $wuLog).Length / 1MB, 2)
@@ -566,7 +616,7 @@ if ($selectedTasks -contains 31) {
                 Log "clear  Restore Points  ($($sorted.Count - 1) deleted, kept latest)"
             }
         } catch { Log "error  Restore Points  $($_.Exception.Message)" }
-    } else { Log "skip   Restore Points (user cancelled)" }
+    } else { Log "skip   Restore Points (user declined)" }
 }
 
 # ============================================================
@@ -582,13 +632,11 @@ if ($selectedTasks -contains 34) {
         "$env:LOCALAPPDATA\Steam\shadercache"
     )
     foreach ($p in $paths) { Remove-ItemsSafe $p "Steam Cache" }
-    # Steam library shader caches - check default and common library locations
     $steamLibs = @("C:\Program Files (x86)\Steam", "$env:LOCALAPPDATA\Steam")
     foreach ($lib in $steamLibs) {
         Remove-ItemsSafe "$lib\steamapps\shadercache" "Steam Shader Cache"
         Remove-ItemsSafe "$lib\package\chunks"        "Steam Download Chunks"
     }
-    # Also check for Steam library folders file and parse extra libraries
     $libFile = "C:\Program Files (x86)\Steam\steamapps\libraryfolders.vdf"
     if (Test-Path $libFile) {
         $content = Get-Content $libFile -ErrorAction SilentlyContinue
@@ -600,32 +648,34 @@ if ($selectedTasks -contains 34) {
 }
 
 # ============================================================
-#  TASK 35 - GPU Shader Cache
+#  TASK 35 - GPU Shader Cache (prompt)
 # ============================================================
 if ($selectedTasks -contains 35) {
     Write-Host "  [35] GPU Shader Cache" -ForegroundColor Cyan
-    # NVIDIA
-    $nvPaths = @(
-        "$env:LOCALAPPDATA\NVIDIA\DXCache",
-        "$env:LOCALAPPDATA\NVIDIA\GLCache",
-        "$env:APPDATA\NVIDIA\ComputeCache"
-    )
-    foreach ($p in $nvPaths) { Remove-ItemsSafe $p "NVIDIA Cache" }
-    # AMD
-    $amdPaths = @(
-        "$env:LOCALAPPDATA\AMD\DxCache",
-        "$env:LOCALAPPDATA\AMD\VkCache",
-        "$env:TEMP\AMD"
-    )
-    foreach ($p in $amdPaths) { Remove-ItemsSafe $p "AMD Cache" }
+    if (Confirm-Risky "Clears NVIDIA/AMD shader caches. Games will rebuild them on next launch (may cause stutters).") {
+        $nvPaths = @(
+            "$env:LOCALAPPDATA\NVIDIA\DXCache",
+            "$env:LOCALAPPDATA\NVIDIA\GLCache",
+            "$env:APPDATA\NVIDIA\ComputeCache"
+        )
+        foreach ($p in $nvPaths) { Remove-ItemsSafe $p "NVIDIA Cache" }
+        $amdPaths = @(
+            "$env:LOCALAPPDATA\AMD\DxCache",
+            "$env:LOCALAPPDATA\AMD\VkCache",
+            "$env:TEMP\AMD"
+        )
+        foreach ($p in $amdPaths) { Remove-ItemsSafe $p "AMD Cache" }
+    } else { Log "skip   GPU Shader Cache (user declined)" }
 }
 
 # ============================================================
-#  TASK 36 - DirectX Shader Cache
+#  TASK 36 - DirectX Shader Cache (prompt)
 # ============================================================
 if ($selectedTasks -contains 36) {
     Write-Host "  [36] DirectX Shader Cache" -ForegroundColor Cyan
-    Remove-ItemsSafe "$env:LOCALAPPDATA\D3DSCache" "D3DSCache"
+    if (Confirm-Risky "Clears DirectX D3DSCache. Games/apps will rebuild on next launch.") {
+        Remove-ItemsSafe "$env:LOCALAPPDATA\D3DSCache" "D3DSCache"
+    } else { Log "skip   D3DSCache (user declined)" }
 }
 
 # ============================================================
@@ -665,9 +715,8 @@ if ($selectedTasks -contains 38) {
         "C:\Windows\System32\WDI\LogFiles"
     )
     foreach ($p in $paths) { Remove-ItemsSafe $p "GameDVR/DXGI" }
-    # DXGI / D3D debug logs
-    $dxgiLogs = Get-ChildItem "$env:LOCALAPPDATA\Temp" -Filter "DXGI*.log" -Force -ErrorAction SilentlyContinue
-    $dxgiLogs += Get-ChildItem "$env:LOCALAPPDATA\Temp" -Filter "D3D*.log" -Force -ErrorAction SilentlyContinue
+    $dxgiLogs  = @(Get-ChildItem "$env:LOCALAPPDATA\Temp" -Filter "DXGI*.log" -Force -ErrorAction SilentlyContinue)
+    $dxgiLogs += @(Get-ChildItem "$env:LOCALAPPDATA\Temp" -Filter "D3D*.log"  -Force -ErrorAction SilentlyContinue)
     $sz = 0
     foreach ($f in $dxgiLogs) {
         $sz += $f.Length
@@ -691,7 +740,6 @@ if ($selectedTasks -contains 39) {
         "$env:LOCALAPPDATA\Microsoft\Windows\WER\ReportArchive"
     )
     foreach ($p in $paths) { Remove-ItemsSafe $p "Crash Dumps" }
-    # Per-user crash dumps from other users
     Get-ChildItem "C:\Users" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
         Remove-ItemsSafe "$($_.FullName)\AppData\Local\CrashDumps" "User Crash Dumps"
     }
@@ -713,10 +761,12 @@ if ($selectedTasks -contains 40) {
         "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\Temporary ASP.NET Files"
     )
     foreach ($p in $paths) { Remove-ItemsSafe $p "VS/.NET Temp" }
-    # Roslyn / build server logs
-    $roslyn = Get-ChildItem "$env:TEMP" -Filter "VBCSCompiler*" -Force -ErrorAction SilentlyContinue
+    $roslyn = @(Get-ChildItem "$env:TEMP" -Filter "VBCSCompiler*" -Force -ErrorAction SilentlyContinue)
     $sz = 0
-    foreach ($f in $roslyn) { $sz += $f.Length; Remove-Item $f.FullName -Force -Recurse -ErrorAction SilentlyContinue }
+    foreach ($f in $roslyn) {
+        $sz += $f.Length
+        Remove-Item $f.FullName -Force -Recurse -ErrorAction SilentlyContinue
+    }
     $mb = [math]::Round($sz / 1MB, 2)
     $script:TotalFreed += $mb
     if ($roslyn.Count -gt 0) { Log "clear  Roslyn Compiler Temp  ($mb MB)" }
@@ -727,16 +777,16 @@ if ($selectedTasks -contains 40) {
 # ============================================================
 $FreedGB = [math]::Round($TotalFreed / 1024, 2)
 Write-Host ""
-Write-Host "  -------------------------------------" -ForegroundColor DarkGray
+Write-Host "  -----------------------------------------------" -ForegroundColor DarkGray
 Write-Host "  DONE" -ForegroundColor Green
 Write-Host ""
 if ($TotalFreed -ge 1024) {
-    Write-Host "  Freed  ~$FreedGB GB" -ForegroundColor Green
+    Write-Host "  Freed  ~$FreedGB GB" -ForegroundColor Cyan
 } else {
-    Write-Host "  Freed  ~$TotalFreed MB" -ForegroundColor Green
+    Write-Host "  Freed  ~$TotalFreed MB" -ForegroundColor Cyan
 }
 Write-Host "  Log    $LogFile" -ForegroundColor DarkGray
-Write-Host "  -------------------------------------" -ForegroundColor DarkGray
+Write-Host "  -----------------------------------------------" -ForegroundColor DarkGray
 Write-Host ""
 Log "session end  |  freed ~$TotalFreed MB"
 
