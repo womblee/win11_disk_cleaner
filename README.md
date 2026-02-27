@@ -50,11 +50,12 @@ Unblock-File -Path .\win11_cleaner.ps1
 
 ## Menu
 
-When the script launches you'll see the full task list. Enter numbers separated by commas, `A` to run everything, or `Q` to quit.
+When the script launches you'll see the full task list. Enter numbers separated by commas, `A` to run everything, `S` for a safe subset, or `Q` to quit.
 
 ```
 1,2,6,34      run specific tasks
 A             run all tasks
+S             simple mode (skips: GPU shader, DirectX, TCP reset, Disk Cleanup, Font Cache, Windows.old, DISM Cleanup)
 Q             quit
 ```
 
@@ -88,8 +89,12 @@ Q             quit
 |---|------|
 | 32 | Spotify Cache |
 | 33 | Telegram Cache |
+| 43 | Zoom Cache |
+| 44 | Adobe Cache |
+| 45 | TeamViewer / AnyDesk Logs |
+| 46 | OBS Temp |
 
-> Spotify and Telegram are terminated before clearing. They relaunch normally afterwards.
+> Apps are terminated before clearing where necessary. They relaunch normally afterwards.
 
 ### Logs + Diagnostics
 
@@ -162,6 +167,17 @@ Q             quit
 | # | Task |
 |---|------|
 | 40 | Visual Studio / .NET Temp (packages temp, ASP.NET temp files, Roslyn compiler cache) |
+| 41 | npm Cache |
+| 42 | pip Cache |
+
+### System (Extra)
+
+| # | Task |
+|---|------|
+| 47 | Font Cache (Explorer restarts briefly to rebuild) |
+| 48 | WinSAT Results |
+| 49 | Windows.old |
+| 50 | DISM Component Store Cleanup |
 
 ---
 
@@ -175,6 +191,11 @@ These tasks prompt `[Y]` before running due to their impact:
 | 20 | Opens the Windows Disk Cleanup wizard |
 | 27 | Resets TCP/IP stack — network will briefly drop |
 | 31 | Deletes all restore points except the most recent |
+| 35 | Clears GPU shader caches (NVIDIA + AMD) |
+| 36 | Clears DirectX shader cache |
+| 47 | Deletes font cache DB files — Explorer restarts briefly |
+| 49 | Permanently deletes `C:\Windows.old` — removes ability to roll back Windows version |
+| 50 | Runs DISM component cleanup — takes several minutes and cannot be undone |
 
 ---
 
@@ -200,6 +221,13 @@ Every task is logged as `clear`, `skip`, or `error`, with the amount freed in MB
 - **Task 27** resets TCP/IP — network reconnects on its own within seconds.
 - **GPU / DirectX shader caches** (35, 36) are rebuilt automatically by your drivers and games on next launch.
 - **Crash dumps** (39) are debug files only — safe to delete unless you are actively diagnosing a crash.
+- **Task 44** clears Adobe media caches and temp files — your projects and assets are untouched.
+- **Task 45** removes TeamViewer and AnyDesk log files only — remote access settings are preserved.
+- **Task 46** removes OBS logs, crash files, and profiler data — recordings and scenes are untouched.
+- **Task 47** restarts Explorer briefly to rebuild the font cache — open windows will reappear.
+- **Task 48** removes old WinSAT benchmark result files — Windows regenerates them as needed.
+- **Task 49** permanently removes `C:\Windows.old` — only present after a Windows upgrade. **Cannot be undone.**
+- **Task 50** runs DISM component cleanup — removes superseded Windows update components. Takes several minutes.
 
 ---
 
