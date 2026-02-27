@@ -37,24 +37,65 @@ function Get-FolderSize {
 }
 
 function Remove-ItemsSafe {
-    param([string]$Path, [string]$Label)
+    param([string]$Path, [string]$Label, [int]$Retries = 2)
     if (-not (Test-Path $Path)) { Log "skip   $Label  (not found)"; return }
-    $before = Get-FolderSize $Path
+    
+    $deletedBytes = 0
+    $failedFiles = @()
+    
     try {
-        Get-ChildItem $Path -File -Recurse -Force -ErrorAction SilentlyContinue |
-            Remove-Item -Force -ErrorAction SilentlyContinue
-        Get-ChildItem $Path -Directory -Recurse -Force -ErrorAction SilentlyContinue |
-            Where-Object { -not (Get-ChildItem $_.FullName -Force -ErrorAction SilentlyContinue) } |
-            Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
-        $after  = Get-FolderSize $Path
-        $freed  = [math]::Round($before - $after, 2)
-        $script:TotalFreed += $freed
-        if ($freed -lt $before) {
-            $skipped = [math]::Round($after, 2)
-            Log "clear  $Label  ($freed MB freed, $skipped MB locked/skipped)"
-        } else {
-            Log "clear  $Label  ($freed MB)"
+        $files = Get-ChildItem $Path -File -Recurse -Force -ErrorAction SilentlyContinue
+        foreach ($f in $files) {
+            $attempt = 0
+            $deleted = $false
+            while ($attempt -le $Retries) {
+                try {
+                    $fileSize = $f.Length
+                    Remove-Item $f.FullName -Force -ErrorAction Stop
+                    $deletedBytes += $fileSize
+                    $deleted = $true
+                    break
+                } catch {
+                    $attempt++
+                    if ($attempt -le $Retries) { Start-Sleep -Milliseconds 300 }
+                }
+            }
+            if (-not $deleted) {
+                $failedFiles += $f.FullName
+            }
         }
+
+        Get-ChildItem $Path -Directory -Recurse -Force -ErrorAction SilentlyContinue |
+            Sort-Object { $_.FullName.Length } -Descending |
+            ForEach-Object {
+                if (-not (Get-ChildItem $_.FullName -Force -ErrorAction SilentlyContinue)) {
+                    # Directory size is approximate (sum of remaining files, but should be 0)
+                    Remove-Item $_.FullName -Force -Recurse -ErrorAction SilentlyContinue
+                }
+            }
+
+        # Calculate remaining size after cleanup
+        $after = Get-FolderSize $Path
+        $freedMB = [math]::Round($deletedBytes / 1MB, 2)
+        $afterMB = [math]::Round($after, 2)
+        
+        # Only add positive freed space to total
+        if ($freedMB -gt 0) {
+            $script:TotalFreed += $freedMB
+        }
+        
+        if ($failedFiles.Count -gt 0) {
+            $lockedMB = [math]::Round(($after - ($deletedBytes / 1MB)), 2)
+            if ($lockedMB -lt 0) { $lockedMB = $afterMB } # Fallback calculation
+            Log "clear  $Label  ($freedMB MB freed, $lockedMB MB locked - $($failedFiles.Count) files could not be deleted)"
+        }
+        elseif ($afterMB -gt 0) {
+            Log "clear  $Label  ($freedMB MB freed, $afterMB MB remains - possibly new files created during cleanup)"
+        }
+        else {
+            Log "clear  $Label  ($freedMB MB)"
+        }
+        
     } catch {
         Log "error  $Label  $($_.Exception.Message)"
     }
@@ -180,18 +221,32 @@ Write-Host "  39  Crash Dumps"
 Write-Host ""
 Write-Host "  DEV TOOLS" -ForegroundColor White
 Write-Host "  40  Visual Studio / .NET Temp"
+Write-Host "  41  npm Cache"
+Write-Host "  42  pip Cache"
+Write-Host ""
+Write-Host "  APPS (EXTRA)" -ForegroundColor White
+Write-Host "  43  Zoom Cache"
+Write-Host "  44  Adobe Cache"
+Write-Host "  45  TeamViewer / AnyDesk Logs"
+Write-Host "  46  OBS Temp"
+Write-Host ""
+Write-Host "  SYSTEM (EXTRA)" -ForegroundColor White
+Write-Host "  47  Font Cache  (Explorer restarts)"
+Write-Host "  48  WinSAT Results"
+Write-Host "  49  Windows.old               [prompt]"
+Write-Host "  50  DISM Component Cleanup    [prompt]"
 Write-Host ""
 Write-Host "  -----------------------------------------------" -ForegroundColor DarkGray
 Write-Host "   A  Run all"  -ForegroundColor Cyan
-Write-Host "   S  Simple  (skips: GPU shader, DirectX, TCP reset, Disk Cleanup)" -ForegroundColor Cyan
+Write-Host "   S  Simple  (skips: GPU shader, DirectX, TCP reset, Disk Cleanup, Font Cache, Windows.old, DISM Cleanup)" -ForegroundColor Cyan
 Write-Host "   Q  Quit" -ForegroundColor Cyan
 Write-Host "  -----------------------------------------------" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "  Tasks (e.g. 1,2,5  or  A  or  S): " -ForegroundColor Green -NoNewline
 $userInput = Read-Host
 
-$allTasks    = @(1,2,3,4,5,6,7,8,9,10,11,12,15,16,17,18,19,20,21,24,25,26,27,28,29,31,32,33,34,35,36,37,38,39,40)
-$simpleTasks = $allTasks | Where-Object { $_ -notin @(20,27,35,36) }
+$allTasks    = @(1,2,3,4,5,6,7,8,9,10,11,12,15,16,17,18,19,20,21,24,25,26,27,28,29,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50)
+$simpleTasks = $allTasks | Where-Object { $_ -notin @(20,27,35,36,47,49,50) }
 
 $selectedTasks = @()
 
@@ -604,19 +659,33 @@ if ($selectedTasks -contains 29) {
 # ============================================================
 if ($selectedTasks -contains 31) {
     Write-Host "  [31] Old Restore Points" -ForegroundColor Cyan
-    if (Confirm-Risky "Keeps only the most recent restore point.") {
+    if (Confirm-Risky "Keeps only the most recent restore point. Older ones will be permanently deleted.") {
         try {
-            $rps = Get-WmiObject Win32_ShadowCopy -ErrorAction SilentlyContinue |
-                   Where-Object { $_.OriginatingMachine -eq $env:COMPUTERNAME }
-            if (-not $rps -or $rps.Count -le 1) {
-                Log "skip   Restore Points (nothing to delete)"
+            $rps = Get-ComputerRestorePoint -ErrorAction SilentlyContinue
+            if (-not $rps -or @($rps).Count -le 1) {
+                Log "skip   Restore Points (only 1 or none - nothing to delete)"
             } else {
-                $sorted = $rps | Sort-Object { $_.CreateTime } -Descending
-                $sorted[1..($sorted.Count-1)] | ForEach-Object { $_.Delete() }
-                Log "clear  Restore Points  ($($sorted.Count - 1) deleted, kept latest)"
+                $sorted = @($rps) | Sort-Object SequenceNumber -Descending
+                # Delete all except the most recent (highest SequenceNumber)
+                $toDelete = $sorted[1..($sorted.Count - 1)]
+                foreach ($rp in $toDelete) {
+                    try {
+                        $null = (Get-WmiObject -Class SystemRestore -Namespace root\default -ErrorAction SilentlyContinue) |
+                            Where-Object { $_.SequenceNumber -eq $rp.SequenceNumber } |
+                            ForEach-Object { $_.Delete() }
+                    } catch {}
+                }
+                # Fallback: vssadmin delete shadows if WMI delete didn't work
+                # (restore points are backed by VSS snapshots)
+                & vssadmin delete shadows /For=C: /Oldest /Quiet 2>$null
+                Log "clear  Restore Points  ($($toDelete.Count) deleted, kept latest: '$($sorted[0].Description)')"
             }
-        } catch { Log "error  Restore Points  $($_.Exception.Message)" }
-    } else { Log "skip   Restore Points (user declined)" }
+        } catch { 
+            Log "error  Restore Points  $($_.Exception.Message)" 
+        }
+    } else { 
+        Log "skip   Restore Points (user declined)" 
+    }
 }
 
 # ============================================================
@@ -770,6 +839,167 @@ if ($selectedTasks -contains 40) {
     $mb = [math]::Round($sz / 1MB, 2)
     $script:TotalFreed += $mb
     if ($roslyn.Count -gt 0) { Log "clear  Roslyn Compiler Temp  ($mb MB)" }
+}
+
+# ============================================================
+#  TASK 41 - npm Cache
+# ============================================================
+if ($selectedTasks -contains 41) {
+    Write-Host "  [41] npm Cache" -ForegroundColor Cyan
+    try {
+        $npmCache = & npm config get cache 2>$null
+        if ($npmCache -and (Test-Path $npmCache)) {
+            Remove-ItemsSafe $npmCache "npm Cache"
+        } else {
+            Remove-ItemsSafe "$env:APPDATA\npm-cache" "npm Cache"
+            Remove-ItemsSafe "$env:LOCALAPPDATA\npm-cache" "npm Cache"
+        }
+    } catch { Log "error  npm Cache  $($_.Exception.Message)" }
+}
+
+# ============================================================
+#  TASK 42 - pip Cache
+# ============================================================
+if ($selectedTasks -contains 42) {
+    Write-Host "  [42] pip Cache" -ForegroundColor Cyan
+    $paths = @(
+        "$env:LOCALAPPDATA\pip\Cache",
+        "$env:APPDATA\pip\Cache"
+    )
+    foreach ($p in $paths) { Remove-ItemsSafe $p "pip Cache" }
+}
+
+# ============================================================
+#  TASK 43 - Zoom Cache
+# ============================================================
+if ($selectedTasks -contains 43) {
+    Write-Host "  [43] Zoom Cache" -ForegroundColor Cyan
+    Stop-AppSafe "Zoom"
+    $paths = @(
+        "$env:APPDATA\Zoom\data\cache",
+        "$env:APPDATA\Zoom\logs",
+        "$env:LOCALAPPDATA\Zoom\logs",
+        "$env:TEMP\Zoom"
+    )
+    foreach ($p in $paths) { Remove-ItemsSafe $p "Zoom" }
+}
+
+# ============================================================
+#  TASK 44 - Adobe Cache
+# ============================================================
+if ($selectedTasks -contains 44) {
+    Write-Host "  [44] Adobe Cache" -ForegroundColor Cyan
+    $paths = @(
+        "$env:LOCALAPPDATA\Adobe\Color\Cache",
+        "$env:APPDATA\Adobe\Common\Media Cache Files",
+        "$env:APPDATA\Adobe\Common\Media Cache",
+        "$env:LOCALAPPDATA\Temp\Adobe",
+        "$env:LOCALAPPDATA\Adobe\Lightroom\Cache",
+        "$env:LOCALAPPDATA\Adobe\Creative Cloud Libraries\com.adobe.librariesaccessagent\Cache"
+    )
+    foreach ($p in $paths) { Remove-ItemsSafe $p "Adobe Cache" }
+}
+
+# ============================================================
+#  TASK 45 - TeamViewer / AnyDesk Logs
+# ============================================================
+if ($selectedTasks -contains 45) {
+    Write-Host "  [45] TeamViewer / AnyDesk Logs" -ForegroundColor Cyan
+    $paths = @(
+        "$env:APPDATA\TeamViewer\Logs",
+        "C:\Program Files\TeamViewer\Logs",
+        "C:\Program Files (x86)\TeamViewer\Logs",
+        "$env:APPDATA\AnyDesk",
+        "$env:PROGRAMDATA\AnyDesk"
+    )
+    foreach ($p in $paths) { Remove-ItemsSafe $p "Remote Access Logs" }
+}
+
+# ============================================================
+#  TASK 46 - OBS Temp
+# ============================================================
+if ($selectedTasks -contains 46) {
+    Write-Host "  [46] OBS Temp" -ForegroundColor Cyan
+    Stop-AppSafe "obs64"
+    Stop-AppSafe "obs32"
+    $paths = @(
+        "$env:APPDATA\obs-studio\logs",
+        "$env:APPDATA\obs-studio\crashes",
+        "$env:APPDATA\obs-studio\profiler_data"
+    )
+    foreach ($p in $paths) { Remove-ItemsSafe $p "OBS" }
+}
+
+# ============================================================
+#  TASK 47 - Font Cache (prompt -- restarts Explorer)
+# ============================================================
+if ($selectedTasks -contains 47) {
+    Write-Host "  [47] Font Cache" -ForegroundColor Cyan
+    if (Confirm-Risky "Deletes font cache DB files. Explorer will be restarted briefly.") {
+        try {
+            Stop-Service FontCache  -Force -ErrorAction SilentlyContinue
+            Stop-Service FontCache3 -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+            $sz = 0
+            Get-ChildItem "$env:WINDIR\ServiceProfiles\LocalService\AppData\Local\FontCache" `
+                -Filter "*.dat" -Force -ErrorAction SilentlyContinue | ForEach-Object {
+                $sz += $_.Length
+                Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+            }
+            Remove-Item "$env:WINDIR\ServiceProfiles\LocalService\AppData\Local\FontCache3\FontCache3.dat" `
+                -Force -ErrorAction SilentlyContinue
+            Start-Service FontCache  -ErrorAction SilentlyContinue
+            Start-Service FontCache3 -ErrorAction SilentlyContinue
+            Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+            Start-Process "C:\Windows\explorer.exe"
+            $mb = [math]::Round($sz / 1MB, 2)
+            $script:TotalFreed += $mb
+            Log "clear  Font Cache  ($mb MB, Explorer restarted)"
+        } catch { Log "error  Font Cache  $($_.Exception.Message)" }
+    } else { Log "skip   Font Cache (user declined)" }
+}
+
+# ============================================================
+#  TASK 48 - WinSAT Results
+# ============================================================
+if ($selectedTasks -contains 48) {
+    Write-Host "  [48] WinSAT Results" -ForegroundColor Cyan
+    Remove-ItemsSafe "C:\Windows\Performance\WinSAT\DataStore" "WinSAT"
+}
+
+# ============================================================
+#  TASK 49 - Windows.old (prompt)
+# ============================================================
+if ($selectedTasks -contains 49) {
+    Write-Host "  [49] Windows.old" -ForegroundColor Cyan
+    if (Test-Path "C:\Windows.old") {
+        if (Confirm-Risky "Permanently deletes C:\Windows.old. You will LOSE the ability to roll back to your previous Windows version.") {
+            try {
+                $sz = Get-FolderSize "C:\Windows.old"
+                & takeown /F "C:\Windows.old" /R /D Y 2>$null
+                & icacls "C:\Windows.old" /grant administrators:F /T /C /Q 2>$null
+                Remove-Item "C:\Windows.old" -Recurse -Force -ErrorAction SilentlyContinue
+                $freed = [math]::Round($sz - (Get-FolderSize "C:\Windows.old"), 2)
+                $script:TotalFreed += $freed
+                Log "clear  Windows.old  ($freed MB)"
+            } catch { Log "error  Windows.old  $($_.Exception.Message)" }
+        } else { Log "skip   Windows.old (user declined)" }
+    } else { Log "skip   Windows.old (not found)" }
+}
+
+# ============================================================
+#  TASK 50 - DISM Component Store Cleanup (prompt)
+# ============================================================
+if ($selectedTasks -contains 50) {
+    Write-Host "  [50] DISM Component Cleanup" -ForegroundColor Cyan
+    if (Confirm-Risky "Runs DISM /StartComponentCleanup. Takes several minutes and cannot be undone.") {
+        try {
+            Log "note   DISM Component Cleanup starting (this takes a while)..."
+            & dism /online /Cleanup-Image /StartComponentCleanup 2>&1 | Out-Null
+            Log "clear  DISM Component Cleanup (done)"
+        } catch { Log "error  DISM  $($_.Exception.Message)" }
+    } else { Log "skip   DISM (user declined)" }
 }
 
 # ============================================================
